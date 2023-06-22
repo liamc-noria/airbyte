@@ -268,6 +268,7 @@ class ReportsAmazonSPStream(Stream, ABC):
             data=json_lib.dumps(report_data),
         )
         report_response = self._send_request(create_report_request)
+        logger.info(f"Report headers: {report_response.headers}")
         return report_response.json()
 
     def _retrieve_report(self, report_id: str) -> Mapping[str, Any]:
@@ -287,7 +288,10 @@ class ReportsAmazonSPStream(Stream, ABC):
         """
         report = requests.get(url).content
         if "compressionAlgorithm" in payload:
-            return zlib.decompress(bytearray(report), 15 + 32).decode("iso-8859-1")
+            try:
+                return zlib.decompress(bytearray(report), 15 + 32).decode("iso-8859-1")
+            except:
+                return zlib.decompress(bytearray(report), 15 + 32).decode("utf-8")
         return report.decode("iso-8859-1")
 
     def parse_response(
@@ -820,7 +824,6 @@ class LedgerDetailedViewReports(IncrementalReportsAmazonSPStream):
 
 
 class IncrementalAnalyticsStream(AnalyticsStream):
-
     fixed_period_in_days = 0
 
     @property
@@ -849,7 +852,6 @@ class IncrementalAnalyticsStream(AnalyticsStream):
     def parse_response(
         self, response: requests.Response, stream_state: Mapping[str, Any] = None, stream_slice: Mapping[str, Any] = None, **kwargs
     ) -> Iterable[Mapping]:
-
         payload = response.json()
 
         document = self.decompress_report_document(
@@ -877,7 +879,6 @@ class IncrementalAnalyticsStream(AnalyticsStream):
     def stream_slices(
         self, sync_mode: SyncMode, cursor_field: List[str] = None, stream_state: Mapping[str, Any] = None
     ) -> Iterable[Optional[Mapping[str, Any]]]:
-
         start_date = pendulum.parse(self._replication_start_date)
         end_date = pendulum.now().subtract(days=self.availability_sla_days)
 
@@ -1070,12 +1071,10 @@ class ListFinancialEvents(FinanceStream):
 
 
 class FbaCustomerReturnsReports(ReportsAmazonSPStream):
-
     name = "GET_FBA_FULFILLMENT_CUSTOMER_RETURNS_DATA"
 
 
 class FlatFileSettlementV2Reports(ReportsAmazonSPStream):
-
     name = "GET_V2_SETTLEMENT_REPORT_DATA_FLAT_FILE"
 
     def _create_report(
@@ -1085,7 +1084,6 @@ class FlatFileSettlementV2Reports(ReportsAmazonSPStream):
         stream_slice: Mapping[str, Any] = None,
         stream_state: Mapping[str, Any] = None,
     ) -> Mapping[str, Any]:
-
         # For backwards
         return {"reportId": stream_slice.get("report_id")}
 
@@ -1119,7 +1117,6 @@ class FlatFileSettlementV2Reports(ReportsAmazonSPStream):
         complete = False
 
         while not complete:
-
             request_headers = self.request_headers()
             get_reports = self._create_prepared_request(
                 http_method="GET",
